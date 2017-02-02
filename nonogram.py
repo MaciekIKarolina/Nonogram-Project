@@ -1,8 +1,9 @@
-from typing import List, Sequence, Iterator, Iterable, Mapping, Set
-from collections import defaultdict, namedtuple
+from typing import List, Iterator, Iterable, Mapping, Set
+from collections import defaultdict
 from ast import literal_eval
 from PIL import Image
 import numpy as np
+from nonogram_timeout import timeout
 
 def cell_naming(clues: Iterable[int]) -> Iterator[int]:
     """
@@ -215,27 +216,31 @@ class RowReversedView:
 
 class nonogram:
     """
+    N - width
+    M - height
     Represents one nonogram picture, with function to solve it,
     if there is only one solution
     """
-    def __init__(self, N: int, Rows: [list], Columns: [list]):
+    def __init__(self, Rows: [list], Columns: [list]):
         """
         Generwates nonogram. As input it takes:
         -dimension N,
         -list of lists with clues for rows
         -list of lists with clues for columns
-
-
         """
-        if not self.checkifcorrect(N, Rows, Columns):
+        N = len(Columns)
+        M = len(Rows)
+        if not self.checkifcorrect(N, M, Rows, Columns):
             raise ValueError
-        self.N = N
+        self.width = N
+        self.height = M
         self.Rows = Rows
         self.Columns = Columns
-        self.iterRows = [Row(self.N, r) for r in self.Rows]
-        self.iterCols = [Row(self.N, c) for c in self.Columns]
-
-    def checkifcorrect(self, N: int, Rows: [list], Columns: [list]) -> bool: 
+        self.iterRows = [Row(self.width, r) for r in self.Rows]
+        self.iterCols = [Row(self.height, c) for c in self.Columns]
+        self.nonogram_Matrix=np.zeros((N,M))
+        
+    def checkifcorrect(self, N: int, M: int, Rows: [list], Columns: [list]) -> bool: 
         """
         checks whether clues for rows and columns are correct
         first check is if sum of clues in rows and clues in columns are equal
@@ -249,7 +254,7 @@ class nonogram:
             return False
         rowsum = [sum(x)+len(x)-1 for x in Rows]
         colsum = [sum(y)+len(y)-1 for y in Columns]
-        if any(x> N for x in rowsum) or any(y>N for y in colsum):
+        if any(x> N for x in rowsum) or any(y>M for y in colsum):
             print('ERROR! Clues doesn\'t match nonogram size!')
             return False
         rowmin = min([min(x) for x in Rows])
@@ -260,7 +265,7 @@ class nonogram:
         return True
         
     def show_me(self):
-        for i in range(self.N):
+        for i in range(self.height):
             print(self.iterRows[i])
         
     def one_step(self, Row):
@@ -288,14 +293,14 @@ class nonogram:
                 elif isCellBlank(cell):
                     cell2 = self.iterCols[enumcol].cells[enumrow]
                     self.iterCols[enumcol].cells[enumrow] = {x for x in cell2 if x < 0}
-        for enumrow, row in enumerate(self.iterCols): #returns row as list of cells in column
-            for enumcol, cell in enumerate(row.cells): #returns cell as single cell in column
+        for enumcol, row in enumerate(self.iterCols): #returns row as list of cells in column
+            for enumrow, cell in enumerate(row.cells): #returns cell as single cell in column
                 if isCellFilled(cell):
-                    cell2 = self.iterRows[enumcol].cells[enumrow]
-                    self.iterRows[enumcol].cells[enumrow] = {x for x in cell2 if x > 0}
+                    cell2 = self.iterRows[enumrow].cells[enumcol]
+                    self.iterRows[enumrow].cells[enumcol] = {x for x in cell2 if x > 0}
                 elif isCellBlank(cell):
-                    cell2 = self.iterRows[enumcol].cells[enumrow]
-                    self.iterRows[enumcol].cells[enumrow] = {x for x in cell2 if x < 0}
+                    cell2 = self.iterRows[enumrow].cells[enumcol]
+                    self.iterRows[enumrow].cells[enumcol] = {x for x in cell2 if x < 0}
 
     def solve(self):
         """
@@ -315,20 +320,33 @@ class nonogram:
             self.multi_step()
             self.transpose_check()
             Nonog2=''.join(cell.__str__() for row in self.iterRows for cell in row.cells)
+            self.nonogram_Matrix = [[1*isCellFilled(cell)-1*isCellBlank(cell)
+                                         for cell in Row.cells]
+                                        for Row in self.iterRows]
 
+    def check_if_correct(self):
+        matrixRows = [row_to_clues(x) for x in self.nonogram_Matrix]
+        matrixCols = [row_to_clues(x) for x in self.nonogram_Matrix.T]
+        #print(self.Rows,matrixRows,self.Columns, matrixCols)
+        return matrixRows==self.Rows and matrixCols==self.Columns
+
+    @timeout(45)
     def full_solve(self):
         """
         check uniqueness of solution, then it solves it, or fills one cell
         to show one possible solution
         Also creates array filled with 1 where cell is filled and -1 where cell is empty
         """
-        if check_uniqueness(self.N,self.Rows,self.Columns):
+        if check_uniqueness(self.Rows, self.Columns):
+            self.pair = [-1,-1]
             self.solve()
         else:
-            pair = uniquisation(self.N,self.Rows,self.Columns)
-            self.fill(pair[0],pair[1])
+            self.pair = uniquisation(self.Rows, self.Columns)
+            self.fill(self.pair[0],self.pair[1])
             self.solve()
-        self.Nonogram_Matrix = [[1*isCellFilled(cell)-1*isCellBlank(cell) for cell in Row.cells] for Row in self.iterRows]
+            self.nonogram_Matrix = [[1*isCellFilled(cell)-1*isCellBlank(cell)
+                                         for cell in Row.cells]
+                                        for Row in self.iterRows]
 
         
     def fill(self, RowNumber: int, ColNumber: int):
@@ -338,33 +356,42 @@ class nonogram:
         cell2 = self.iterRows[RowNumber].cells[ColNumber]
         self.iterRows[RowNumber].cells[ColNumber] = {x for x in cell2 if x > 0}
         
-    def unfill(self, Rows: [list], Columns: [list]):
+    def unfill(self, RowNumber: int, ColNumber: int):
         """
         Forces cell in given row and in given column to become empty
         """
         cell2 = self.iterRows[RowNumber].cells[ColNumber]
         self.iterRows[RowNumber].cells[ColNumber] = {x for x in cell2 if x < 0}
 
-
+    def nonogram_to_GUI(self):
+        return [self.Rows, self.Columns, self.nonogram_Matrix]
         
-
-def check_uniqueness(N: int, Rows: [list], Columns: [list]):
+        
+@timeout(30)
+def check_uniqueness(Rows: [list], Columns: [list]):
     """
     Check whether nonogram contains cells that are non-certain - these can be filled with more than one pattern
     """
-    NonoGram = nonogram(N, Rows, Columns)
+    NonoGram = nonogram(Rows, Columns)
     NonoGram.solve()
     representation = ''.join(row.__str__() for row in NonoGram.iterRows)
     return not '/' in representation
 
-def uniquisation(N: int, Rows: [list], Columns: [list]) -> List[int]:
+@timeout(30)
+def uniquisation(Rows: [list], Columns: [list]) -> List[int]:
     """
     Returns coordinates of first cell that if filled grants us unique solution
     """
-    for i in range(N):
-        for j in range(N):
-            NG = nonogram(N, Rows, Columns)
+    NG = nonogram(Rows, Columns)
+    NG.solve()
+    representation = ''.join(row.__str__() for row in NG.iterRows)            
+    if not '/' in representation and ' ' in representation and '#' in representation:
+        return [-1,-1]
+    for i in range(len(Rows)):
+        for j in range(len(Columns)):
+            NG = nonogram(Rows, Columns)
             NG.solve()
+            
             if isCellFilled(NG.iterRows[i].cells[j]) or isCellBlank(NG.iterRows[i].cells[j]):
                 next
             NG.fill(i,j)
@@ -372,48 +399,52 @@ def uniquisation(N: int, Rows: [list], Columns: [list]) -> List[int]:
             representation = ''.join(row.__str__() for row in NG.iterRows)            
             if not '/' in representation and ' ' in representation and '#' in representation:
                 return [i,j]
-
+    
 
 
 def import_from_file(file: str) -> list:
     """
     Checks given file if it contains nonograms schemes with pattern as below:
-    20  <------- size of nonogram
     [[5,4,3,1],[3,7],...,[2,1,8,6],[3,4,10],[17]] <------- list of clues for rows - must contain number of lists equal to size of nonogram.
     Each sub-list relates to one row in nonogram. If there is no clue - [0] must be written 
     [[5,8],[3,7],...,[14,3],[1,3,12]] <------- list of clues for columns - conditions as for rows 
-     <------- one line of space before new nonogram
-    3                   <-------|  
-    [[1,1],[1],[1,1]]   <-------|--- next nonogram
-    [[1,1],[1],[1,1]]   <-------| 
-    
+                        <------- one line of space before new nonogram
+    [[1,1],[0],[1,1]]   <-------+--- next nonogram
+    [[1,1],[0],[1,1]]   <-------+ 
     """
-    Nonograms = []
+    Nonograms = {'unique':[],'nonunique':[]}
     for p in (x for x in open(file).read().split("\n\n") if x):
         NGInput=p.split("\n")
-        Nonograms.append(nonogram(int(NGInput[0]),literal_eval(NGInput[1]),
-                                  literal_eval(NGInput[2])))
+        if check_uniqueness(literal_eval(NGInput[0]),
+                            literal_eval(NGInput[1])):
+            Nonograms['unique'].append(nonogram(literal_eval(NGInput[0]),
+                                                literal_eval(NGInput[1])))
+        else:
+           Nonograms['nonunique'].append(nonogram(literal_eval(NGInput[0]),
+                                                  literal_eval(NGInput[1]))) 
     return Nonograms
 
-
-def import_picture(image_name: str, N: int) ->List[list]:
+@timeout(15)
+def import_picture(image_name: str, N: int, M:int) -> List[list]:
     """
-    Converts given picture to array of given size with -1 as empty cells and with 1 as filled one, and then converts it to lists of clues
+    Converts given picture to array of given size
+    (actual size may differ due to keeping aspect ratio)
+    with -1 as empty cells and with 1 as filled one,
+    and then converts it to lists of clues
     Returns List of list of clues for rows and for columns
-    Works only with square pictures.
     """
     image_file = Image.open(image_name) # open colour image
     image_file = image_file.convert('1') # convert image to black and white
-    image_file.thumbnail((N, N), Image.ANTIALIAS)
+    image_file.thumbnail((M, N), Image.ANTIALIAS)
     image = np.array(image_file)
     image = 1-2* image
     Rows = [row_to_clues(x) for x in image]
     Cols = [row_to_clues(x) for x in image.T]
-    return [Rows, Cols]
+    return len(Cols), len(Rows), Rows, Cols
 
 
 
-def row_to_clues(X: List[int])->List[int]:
+def row_to_clues(X: List[int]) -> List[int]:
     """
     converts array with -1 (empty cell) and 1 (filled cell) to a list of clues
     >>> row_to_clues([-1,-1,1,1,-1,-1,-1,1,-1,-1,1,1,1,1,1,1,-1,-1,-1,1,-1,-1,-1])
@@ -422,13 +453,13 @@ def row_to_clues(X: List[int])->List[int]:
     U=[]
     j=0
     running=False
-    for i in range(len(X)):
-        if X[i]==1:
+    for x in X:
+        if x==1:
             if not running:
                 U.append(0)
             running=True
             U[j]=U[j]+1
-        if X[i]==-1:
+        if x==-1:
             if running:
                 j=j+1
             running=False
@@ -437,10 +468,31 @@ def row_to_clues(X: List[int])->List[int]:
     return U
 
 
+import itertools
+@timeout(60)
+def brutforce_unique(nono):
+    results = []
+    rowssum = sum([sum(x) for x in nono.Rows])
+    S = set(itertools.combinations(range(len(nono.Rows)*len(nono.Columns)), rowssum))
+    for TrySet in S:
+        nonogram1 = nonogram(nono.Rows,nono.Columns)
+        for x in TrySet: 
+            nonogram1.fill(int(x%nonogram1.width),int(x/nonogram1.width))
+            nonogram1.nonogram_Matrix = np.array([[-1+2*isCellFilled(cell)
+                                             for cell in Row.cells]
+                                            for Row in nonogram1.iterRows])
+        print(nonogram1.nonogram_Matrix)
+        if nonogram1.check_if_correct():
+            results.append(TrySet)
+    print(results)
 
-X=import_from_file("Nonogram testing — kopia.txt")
 
-
-Nono=X[-1]
-Nono.full_solve()
-Nono.show_me()
+##X=import_from_file("Nonogram base.txt")
+##Nono=X[1]
+##X=import_picture("pumba.jpg", 17, 17)
+##Nono=nonogram(X[2],X[3])
+##Nono=nonogram([[1,1,1],[2,3,2],[2,5,2],[2,7,2],[15],[13],[11],[11],[1,7,1],[2,1,2],[3,3,3],[13],[13],[6,6],[4,4]],
+##              [[3],[5,5],[2,11],[4,5],[6,4],[7,4],[8,4],[13],[8,4],[7,4],[6,4],[4,5],[2,11],[5,5],[3]])
+##Nono.solve()
+##Nono.full_solve()
+##Nono.show_me()
