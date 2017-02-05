@@ -235,8 +235,15 @@ class nonogram:
         """
         N = len(Columns)
         M = len(Rows)
-        if not self.checkifcorrect(N, M, Rows, Columns):
-            raise ValueError
+        try:
+            self.checkifcorrect(N, M, Rows, Columns)
+        except ValueError:
+            print("Nonogram was not defined correctly.",
+                  "Subsituted with simple one.")
+            Rows = [[3], [1, 2], [1], [4]]
+            Columns = [[1, 1], [1, 1], [4], [2, 1]]
+            N = 4
+            M = 4
         self.pair = [-1, -1]
         self.width = N
         self.height = M
@@ -259,17 +266,17 @@ class nonogram:
             print('ERROR! Clues indicates that you have \
                    different number of filled cells in \
                    rows and columns!')
-            return False
+            raise ValueError
         rowsum = [sum(x) + len(x) - 1 for x in Rows]
         colsum = [sum(y) + len(y) - 1 for y in Columns]
         if any(x > N for x in rowsum) or any(y > M for y in colsum):
             print('ERROR! Clues doesn\'t match nonogram size!')
-            return False
+            raise ValueError
         rowmin = min([min(x) for x in Rows])
         colmin = min([min(y) for y in Columns])
         if rowmin < 0 or colmin < 0:
             print('ERROR! Clues can only contain non-negative numbers!')
-            return False
+            raise ValueError
         return True
 
     def show_me(self):
@@ -350,7 +357,6 @@ class nonogram:
                       for x in np.array(self.nonogram_Matrix).T]
         return matrixRows == self.Rows and matrixCols == self.Columns
 
-    @timeout(45)
     def full_solve(self):
         """
         check uniqueness of solution, then it solves it, or fills
@@ -431,7 +437,6 @@ def uniquisation(Rows, Columns):
         for j in range(len(Columns)):
             NG = nonogram(Rows, Columns)
             NG.solve()
-
             if isCellFilled(NG.iterRows[i].cells[j]) \
                or isCellBlank(NG.iterRows[i].cells[j]):
                 next
@@ -461,22 +466,26 @@ def import_from_file(file):
     Nonograms = {'unique': [], 'nonunique': [], 'hard': []}
     for p in (x for x in open(file).read().split("\n\n") if x):
         NGInput = p.split("\n")
-        if check_uniqueness(literal_eval(NGInput[0]),
-                            literal_eval(NGInput[1])):
-            Nonograms['unique'].append(nonogram(literal_eval(NGInput[0]),
-                                                literal_eval(NGInput[1])))
-        elif uniquisation(literal_eval(NGInput[0]),
-                          literal_eval(NGInput[1])) != [-1, -1]:
-            Nonograms['nonunique'].append(nonogram(literal_eval(NGInput[0]),
-                                                   literal_eval(NGInput[1])))
-        else:
+        try:
+            if check_uniqueness(literal_eval(NGInput[0]),
+                                literal_eval(NGInput[1])):
+                Nonograms['unique'].append(nonogram(literal_eval(NGInput[0]),
+                                                    literal_eval(NGInput[1])))
+            elif uniquisation(literal_eval(NGInput[0]),
+                              literal_eval(NGInput[1])) != [-1, -1]:
+                Nonograms['nonunique'].append(nonogram(literal_eval(NGInput[0]),
+                                                       literal_eval(NGInput[1])))
+            else:
+                Nonograms['hard'].append(nonogram(literal_eval(NGInput[0]),
+                                                  literal_eval(NGInput[1])))
+        except TimeoutError:
             Nonograms['hard'].append(nonogram(literal_eval(NGInput[0]),
                                               literal_eval(NGInput[1])))
     return Nonograms
 
 
 @timeout(15)
-def import_picture(image_name, N, M):
+def import_picture(image_name, N=15, M=15):
     """
     Converts given picture to array of given size
     (actual size may differ due to keeping aspect ratio)
@@ -498,7 +507,7 @@ def row_to_clues(X):
     """
     converts array with -1 (empty cell) and 1 (filled cell) to a list of clues
 
-    >>> row_to_clues([-1,-1,1,1,-1,-1,-1,1,-1,-1,1,1,1,1,1,1,
+    >>> row_to_clues([-1,-1,1,1,-1,-1,-1,1,-1,-1,1,1,1,1,1,1,\
                       -1,-1,-1,1,-1,-1,-1])
     [2, 1, 6, 1]
     """

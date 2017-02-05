@@ -1,11 +1,17 @@
 from Nonogram.GUI import *
 from Nonogram.Hard_GUI import *
-import Nonogram.Solver as sol
+from Nonogram.Solver import *
 import numpy as np
 from PIL import Image
-import tkinter as tk
-from tkinter import BOTH, Listbox, StringVar, END, Menu
-from tkinter.ttk import Frame, Label, Style
+try:
+    import Tkinter as tk
+    from Tkinter import BOTH, Listbox, StringVar, END, Menu
+    from ttk import Frame, Label, Style
+    import tkFileDialog as filedialog
+except ImportError:
+    import tkinter as tk
+    from tkinter import BOTH, Listbox, StringVar, END, Menu, filedialog
+    from tkinter.ttk import Frame, Label, Style
 
 
 class Nono_Main(Frame):
@@ -26,7 +32,7 @@ class Nono_Main(Frame):
         within GUI
         '''
         self.parent.title("Nonograms")
-        base_nonograms = sol.import_from_file("Nonogram base.txt")
+        base_nonograms = import_from_file("Nonogram base.txt")
         self.all_nonograms = []
         menubar = tk.Menu(self.parent)
         self.parent.config(menu=menubar)
@@ -69,10 +75,8 @@ class Nono_Main(Frame):
         self.info3 = Label(self, text="")
         self.info3.place(x=150, y=60)
 
-        self.xSize = tk.Entry(self, width=5)
         self.info4 = Label(self, text="Rows:")
         self.ySize = tk.Entry(self, width=5)
-        self.info5 = Label(self, text="Columns:")
 
     def onSelect(self, val):
         '''
@@ -83,10 +87,11 @@ class Nono_Main(Frame):
         sender = val.widget
         num = sender.curselection()[0]
         current_nonogram = self.all_nonograms[num]
-        current_nonogram.solve()
-        current_nonogram.full_solve()
         master = tk.Tk()
-        if 'HARD' not in sender.get(sender.curselection()):
+        if 'HARD' not in sender.get(sender.curselection())\
+           and 'Picture' not in sender.get(sender.curselection()):
+            current_nonogram.solve()
+            current_nonogram.full_solve()
             app = ShowNono(master, current_nonogram.Rows,
                            current_nonogram.Columns,
                            current_nonogram.nonogram_Matrix,
@@ -108,25 +113,21 @@ class Nono_Main(Frame):
         So if original picture has resolution 900x900
         and players gives X = 10, Y = 100 picture will
         be converted to X = 100 and Y = 100, to retain
-        size ratio and to match Y
+        size ratio and to match Y.
         '''
-        if self.xSize:
-            self.xSize.destroy()
         if self.ySize:
             self.ySize.destroy()
         if self.info4:
             self.info4.destroy()
-        if self.info5:
-            self.info5.destroy()
         ftypes = [('Text files', '*.txt'),
                   ('Pictures', '*.jpg; *.png; *.bmp')]
-        dlg = tk.filedialog.Open(self, filetypes=ftypes)
+        dlg = filedialog.Open(self, filetypes=ftypes)
         self.fl = dlg.show()
         sss = self.fl.split("/")
         self.info3.configure(text=sss[-1])
         if self.fl[-3:] == "txt":
             self.convert = tk.Button(self, text='Convert',
-                                     command=self.convert)
+                                     command=self.converty)
             self.convert.place(x=200, y=160)
 
         elif self.fl[-3:] in ['jpg', 'png', 'bmp']:
@@ -136,24 +137,18 @@ class Nono_Main(Frame):
             self.info4 = Label(self, text="Rows:")
             self.info4.place(x=150, y=100)
 
-            self.xSize = tk.Entry(self, width=5)
-            self.xSize.place(x=210, y=130)
-
-            self.info5 = Label(self, text="Columns:")
-            self.info5.place(x=150, y=130)
-
             self.convert = tk.Button(self, text='Convert',
-                                     command=self.convert)
+                                     command=self.converty)
             self.convert.place(x=200, y=160)
 
-    def convert(self):
+    def converty(self):
         '''
-        imports and adds to list nonograms from file,
+        Imports and adds to list nonograms from file,
         or converts picture to nonogram and adds it
-        to the list
+        to the list.
         '''
         if self.fl[-3:] == "txt":
-            base_nonograms = sol.import_from_file(self.fl)
+            base_nonograms = import_from_file(self.fl)
             name = self.fl.split("/")[-1].split(".")[0]
             nonos = []
             for n in range(len(base_nonograms['unique'])):
@@ -172,17 +167,15 @@ class Nono_Main(Frame):
                 self.lb.insert(tk.END, i)
         elif self.fl[-3:] in ['jpg', 'png', 'bmp']:
             name = self.fl.split("/")[-1].split(".")[0]
-            rows, cols = sol.import_picture(self.fl,
-                                            int(self.xSize.get()),
-                                            int(self.ySize.get()))
-            ngram = sol.nonogram(rows, cols)
-            self.lb.insert(tk.END, "My " + name + ' ' +
+            rows, cols = import_picture(self.fl,
+                                        int(self.ySize.get()),
+                                        int(self.ySize.get()))
+            ngram = nonogram(rows, cols)
+            self.lb.insert(tk.END, "Picture " + name + ' ' +
                            str(len(self.all_nonograms)))
             self.all_nonograms.append(ngram)
-            self.xSize.destroy()
             self.ySize.destroy()
             self.info4.destroy()
-            self.info5.destroy()
 
         self.convert.destroy()
         self.info3.configure(text="")
@@ -196,7 +189,7 @@ class Nono_Main(Frame):
     def export(self):
         '''
         Saves all nonograms from the list to "Nonogram base.txt" so
-        they will be loaded on next opening
+        they will be loaded on next opening.
         '''
         text = [str(nonogram.Rows) + '\n' + str(nonogram.Columns)
                 for nonogram in self.all_nonograms]

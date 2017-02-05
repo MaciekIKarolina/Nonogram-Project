@@ -1,9 +1,13 @@
 import numpy as np
 from Nonogram.Solver import row_to_clues
-import tkinter as tk
-from tkinter import Button
-from tkinter import messagebox as box
-# import tkMessageBox as box
+try:
+    import Tkinter as tk
+    from Tkinter import Button
+    import tkMessageBox as box
+except ImportError:
+    import tkinter as tk
+    from tkinter import Button
+    from tkinter import messagebox as box
 
 
 class ShowNonoHard(tk.Frame):
@@ -29,9 +33,14 @@ class ShowNonoHard(tk.Frame):
         self.parent.geometry('%dx%d' % (self.width * 2 - 10,
                                         self.height * 2 + 15))
         self.pack(side="top", fill="x")
-        box.showinfo('', '''This is a little bit harder nonogram.
-                     Our algorithm couldn\'t solve it.
-                     Maybe you will! :)''')
+        self.menubar = tk.Menu(self.parent)
+        self.menubar.add_command(label="Reset", command=self.reset_game)
+        self.menubar.add_command(label="Quit", command=self.parent.destroy)
+        self.parent.config(menu=self.menubar)
+        box.showinfo('', '''                    This is a little bit harder nonogram.
+                    Our algorithm couldn\'t solve it so you don\'t
+                    have any hints. Maybe you will solve it without
+                    our help! :)''')
 
     def create_cells(self, parent, rows=5, columns=5):
         '''
@@ -63,9 +72,6 @@ class ShowNonoHard(tk.Frame):
                 self.widgets[i + self.cclues][j + self.rclues]\
                     .bind("<Button-2>", self.reset_cell)
 
-        self.buttonReset = Button(self, text='Reset', command=self.reset_game)
-        self.buttonReset.grid(columnspan=2,
-                              column=int((self.N + self.rclues) / 2 + 1))
         self.create_clues()
 
     def create_clues(self):
@@ -76,14 +82,14 @@ class ShowNonoHard(tk.Frame):
         for i in range(self.M):
             for j in range(len(self.rows[i])):
                 self.widgets[self.cclues + i][-j - self.N - 1]\
-                    .configure(text=str(self.rows[i][j]))
+                    .configure(text=str(self.rows[i][-j-1]))
                 self.widgets[self.cclues + i][-j - self.N - 1]\
                     .bind("<Button-1>", self.cross_clue)
 
         for i in range(self.N):
             for j in range(len(self.columns[i])):
                 self.widgets[self.cclues - j - 1][i + self.rclues]\
-                    .configure(text=str(self.columns[i][j]))
+                    .configure(text=str(self.columns[i][-j-1]))
                 self.widgets[self.cclues - j - 1][i + self.rclues]\
                     .bind("<Button-1>", self.cross_clue)
 
@@ -94,16 +100,6 @@ class ShowNonoHard(tk.Frame):
         for i in range(self.cclues):
             for j in range(self.rclues + self.N):
                 self.widgets[i][j].configure(bg='old lace')
-
-    def set_cell(self, position):
-        self.widgets[position[0] + self.cclues][position[1] + self.rclues]\
-            .configure(bg='black', state='disabled')
-        self.gameMatrix[position[0]][position[1]] = 1
-
-    def cut_cell(self, position):
-        self.widgets[position[0] + self.cclues][position[1] + self.rclues]\
-            .configure(bg=self.defaultbg, text='x', state='disabled')
-        self.gameMatrix[position[0]][position[1]] = 0
 
     def cross_clue(self, event):
         '''Turns clue red and black'''
@@ -116,9 +112,10 @@ class ShowNonoHard(tk.Frame):
         '''Fills clicked cell black'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(bg='black')
-            self.gameMatrix[int(event.widget.winfo_y()/18) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 1
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 1
         if self.is_game_over():
             self.end_game()
 
@@ -126,9 +123,10 @@ class ShowNonoHard(tk.Frame):
         '''Crosses clicked cell'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(text='x', bg=self.defaultbg)
-            self.gameMatrix[int(event.widget.winfo_y()/19) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 0
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 0
         if self.is_game_over():
             self.end_game()
 
@@ -136,9 +134,10 @@ class ShowNonoHard(tk.Frame):
         '''Empties clicked cell'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(bg=self.defaultbg, text='  ')
-            self.gameMatrix[int(event.widget.winfo_y()/18) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 0
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 0
         if self.is_game_over():
             self.end_game()
 

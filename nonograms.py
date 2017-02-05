@@ -1,5 +1,8 @@
 import Nonogram
-import tkinter as tk
+try:
+    import Tkinter as tk
+except ImportError:
+    import tkinter as tk
 
 
 if __name__ == '__main__':

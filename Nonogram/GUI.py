@@ -1,7 +1,11 @@
 import numpy as np
 from random import choice
-import tkinter as tk
-from tkinter import Button
+try:
+    import Tkinter as tk
+    from Tkinter import Button
+except ImportError:
+    import tkinter as tk
+    from tkinter import Button
 
 
 class ShowNono(tk.Frame):
@@ -77,7 +81,7 @@ class ShowNono(tk.Frame):
         for i in range(self.M):
             for j in range(len(self.rows[i])):
                 self.widgets[self.cclues + i][-j - self.N - 1]\
-                    .configure(text=str(self.rows[i][j]))
+                    .configure(text=str(self.rows[i][-j-1]))
                 self.widgets[self.cclues + i][-j - self.N - 1]\
                     .bind("<Button-1>", self.cross_clue)
 
@@ -99,7 +103,7 @@ class ShowNono(tk.Frame):
     def set_cell(self, position):
         '''Fills cell with given position - used by Hint button.'''
         self.widgets[position[0] + self.cclues][position[1] + self.rclues]\
-            .configure(bg='black', state='disabled')
+            .configure(bg='black', state='disabled', text='  ')
         self.gameMatrix[position[0]][position[1]] = 1
 
     def cut_cell(self, position):
@@ -119,9 +123,10 @@ class ShowNono(tk.Frame):
         '''Fills clicked cell black'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(bg='black')
-            self.gameMatrix[int(event.widget.winfo_y()/18) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 1
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 1
 
         if self.is_game_over():
             self.end_game()
@@ -130,9 +135,10 @@ class ShowNono(tk.Frame):
         '''Crosses clicked cell'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(text='x', bg=self.defaultbg)
-            self.gameMatrix[int(event.widget.winfo_y()/18) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 0
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 0
 
         if self.is_game_over():
             self.end_game()
@@ -141,9 +147,10 @@ class ShowNono(tk.Frame):
         '''Empties clicked cell'''
         if event.widget.cget('state') != 'disabled':
             event.widget.configure(bg=self.defaultbg, text='  ')
-            self.gameMatrix[int(event.widget.winfo_y()/18) -
-                            self.cclues][int(event.widget.winfo_x()/20) -
-                                         self.rclues] = 0
+            x = int(event.widget.winfo_y()/18) - self.cclues
+            y = int(event.widget.winfo_x()/19) - self.rclues
+            self.gameMatrix[min([x, len(self.gameMatrix)-1])]\
+                           [min([y, len(self.gameMatrix[0])-1])] = 0
 
         if self.is_game_over():
             self.end_game()
